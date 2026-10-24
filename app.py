@@ -178,4 +178,23 @@ def create_admin():
     with app.app_context():
         if db.session.scalar(db.select(User).filter_by(username=username)):raise RuntimeError('User exists')
         db.session.add(User(username=username,password_hash=generate_password_hash(password)));db.session.commit();print('Admin created')
+
+@app.cli.command('bootstrap-admin')
+def bootstrap_admin():
+    """Create the first account from temporary deployment secrets, once only."""
+    with app.app_context():
+        if db.session.scalar(db.select(User.id).limit(1)) is not None:
+            print('An account already exists; bootstrap skipped.')
+            return
+        username = os.environ.get('BOOTSTRAP_ADMIN_USERNAME', '').strip()
+        password = os.environ.get('BOOTSTRAP_ADMIN_PASSWORD', '')
+        if not username and not password:
+            print('No account exists. Set BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD to create the first account.')
+            return
+        if not username or len(username) > 80 or len(password) < 12:
+            raise RuntimeError('Bootstrap requires a username of 1-80 characters and a password of at least 12 characters')
+        db.session.add(User(username=username, password_hash=generate_password_hash(password)))
+        db.session.commit()
+        print('First admin account created. Remove the BOOTSTRAP_ADMIN_* environment variables.')
+
 if __name__=='__main__':app.run(debug=os.environ.get('APP_ENV','development')=='development')
